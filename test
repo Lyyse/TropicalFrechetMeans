@@ -1,0 +1,103 @@
+#!/usr/bin/perl -l
+use strict;
+use warnings;	
+use application 'tropical';
+
+# Check if at least one argument is provided
+if (@ARGV < 1) {
+    die "Usage: $0 <arg1> [arg2 ...]\n";
+}
+
+my @points_array;
+# Loop through the input strings and evaluate them
+foreach my $point_string (@ARGV) {
+    my @point = eval $point_string;
+    push @points_array, @point;
+}
+
+sub trop_dist_poly {
+    # Converts a point to a string
+    my ($point) = @_;
+    my $amb_dim = scalar(@$point);
+    
+    my $poly_str = "max(";
+
+    for my $i (0 .. ($amb_dim - 2)) {
+        for my $j (($i + 1) .. ($amb_dim - 1)) {
+            $poly_str .= $point->[$j] - $point->[$i] . "+";
+            $poly_str .= "x_" . ($i + 1) . "-x_" . ($j + 1) . ", ";
+            $poly_str .= $point->[$i] - $point->[$j] . "+";
+            $poly_str .= "x_" . ($j + 1) . "-x_" . ($i + 1) . ", ";
+        }
+    }
+
+    $poly_str .= ")";
+
+    return $poly_str;
+}
+
+sub trop_dist {
+    my ($x, $y) = @_;
+    my @diff;
+    for my $i (0 .. $#{$x}) {
+        push @diff, $x->[$i] - $y->[$i];
+    }
+    return max(@diff) - min(@diff);
+}
+
+sub sum_dist {
+    # Calculates the sum of tropical distances (to some power) of ref to points
+    my ($ref, @points, $power) = @_;
+    $power //= 1;  # Default value for power is 1 if not provided
+    my @dists;
+    
+    for my $point (@points) {
+        my $dist = trop_dist($ref, $point);
+        push @dists, $dist;
+    }
+    
+    print @dists;
+
+    my $sum = sum(@dists);
+    return $sum;
+}
+
+my @tropicalPolynomials;
+foreach my $point (@points_array) {
+    push @tropicalPolynomials, toTropicalPolynomial(trop_dist_poly($point))
+}
+
+# Take the product of the tropical polynomials
+my $f0 = $tropicalPolynomials[0];
+for my $i (1 .. $#tropicalPolynomials) {
+    $f0 *= $tropicalPolynomials[$i];
+}
+
+# Construct the FM hypersurface (unrelaxed)
+my $T0 = new Hypersurface<Max>(POLYNOMIAL=>$f0);
+my $skeleton = skeleton_complex($T0, 1, true);
+
+my @verts = $skeleton -> VERTICES;
+my @edges = $skeleton -> MAXIMAL_POLYTOPES;
+
+# my @sums_at_verts;
+# foreach my $v (@verts) {
+#     print $v -> diff([1,2,3]);
+#     push @sums_at_verts, sum_dist($v, @points_array);
+# }
+
+# Construct a hypersurface (with the first relaxation)
+# my $T1 = new Hypersurface<Max>(POLYNOMIAL=>$f1);
+
+# Construct a hypersurface (with the second relaxation)
+# my $T2 = new Hypersurface<Max>(POLYNOMIAL=>$f2);
+
+# Write to text files
+
+open(my $file_handle1, '>', 'vertex_info.txt') or die "Could not open file 'vertex_info.txt': $!";
+print $file_handle1 (@verts);
+
+open(my $file_handle2, '>', 'edge_info.txt') or die "Could not open file 'edge_info.txt: $!";
+print $file_handle2 (@edges);
+
+exit();
